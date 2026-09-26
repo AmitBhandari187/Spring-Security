@@ -3,16 +3,18 @@ package com.spring_security;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.provisioning.JdbcUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 
@@ -28,11 +30,13 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity){
-        httpSecurity.authorizeHttpRequests(authorizeRequest->
+        httpSecurity.csrf(AbstractHttpConfigurer::disable)
+                .authorizeHttpRequests(authorizeRequest->
                 authorizeRequest.requestMatchers("/admin/**").hasRole("ADMIN")
                                 .requestMatchers("/user/**").hasAnyRole("USER","ADMIN")
-                .anyRequest().authenticated());
-        httpSecurity.httpBasic(Customizer.withDefaults());
+                                .requestMatchers("/signin").permitAll() //this is so anyone can access this signin url
+                        .anyRequest().authenticated());
+//        httpSecurity.httpBasic(Customizer.withDefaults());
         return httpSecurity.build();
     }
 //    UserDetailsService = To load user details either from DB , In-memory.
@@ -61,14 +65,27 @@ public class SecurityConfig {
 
 //        return new InMemoryUserDetailsManager(user1,user2,admin);
         JdbcUserDetailsManager jdbcUserDetailsManager=new JdbcUserDetailsManager(dataSource);
-        jdbcUserDetailsManager.createUser(user1);
-        jdbcUserDetailsManager.createUser(user2);
-        jdbcUserDetailsManager.createUser(admin);
+        if (!jdbcUserDetailsManager.userExists(user1.getUsername())){
+            jdbcUserDetailsManager.createUser(user1);
+        }
+        if (!jdbcUserDetailsManager.userExists(user2.getUsername())){
+            jdbcUserDetailsManager.createUser(user2);
+        }
+        if (!jdbcUserDetailsManager.userExists(admin.getUsername())){
+            jdbcUserDetailsManager.createUser(admin);
+        }
         return jdbcUserDetailsManager;
     }
 
     @Bean
     public BCryptPasswordEncoder passwordEncoder(){
         return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public AuthenticationManager authenticationManager(
+            AuthenticationConfiguration configuration) throws Exception {
+
+        return configuration.getAuthenticationManager();
     }
 }
